@@ -85,6 +85,7 @@ public class HomeFragment extends Fragment implements ChartCategoryAdapter.OnCha
     /**
      * Loads all user playlists from the database and displays them
      * Shows a toast message if no playlists are found or if there's an error
+     * Limits the display to 4 playlists in the home fragment
      */
     public void loadPlaylists() {
         try {
@@ -96,7 +97,12 @@ public class HomeFragment extends Fragment implements ChartCategoryAdapter.OnCha
             if (playlists.isEmpty()) {
                 Toast.makeText(getContext(), "No playlists found", Toast.LENGTH_SHORT).show();
             } else {
-                playlistAdapter.setPlaylists(playlists);
+                // Limit to 4 playlists for home fragment
+                ArrayList<UserPlaylist> limitedPlaylists = new ArrayList<>();
+                for (int i = 0; i < Math.min(playlists.size(), 4); i++) {
+                    limitedPlaylists.add(playlists.get(i));
+                }
+                playlistAdapter.setPlaylists(limitedPlaylists);
             }
         } catch (Exception e) {
             Toast.makeText(getContext(), "Error loading playlists: " + e.getMessage(), Toast.LENGTH_SHORT).show();
@@ -130,32 +136,73 @@ public class HomeFragment extends Fragment implements ChartCategoryAdapter.OnCha
         call.enqueue(new Callback<RssResponse>() {
             @Override
             public void onResponse(Call<RssResponse> call, retrofit2.Response<RssResponse> response) {
-                if (response.isSuccessful() && response.body() != null && !response.body().getFeed().getEntry().isEmpty()) {
-                    Entry firstEntry = response.body().getFeed().getEntry().get(0);
-                    List<ImImageItem> images = firstEntry.getImImage();
-                    if (images != null && !images.isEmpty()) {
-                        String artworkUrl = images.get(images.size() - 1).getLabel();
-                        Log.d("HomeFragment", "Setting cover image for " + chart.getTitle() + ": " + artworkUrl);
-                        chart.setCoverImageUrl(artworkUrl);
+                if (response.isSuccessful() && response.body() != null) {
+                    RssResponse rssResponse = response.body();
+                    if (rssResponse.getFeed() != null && 
+                        rssResponse.getFeed().getEntry() != null && 
+                        !rssResponse.getFeed().getEntry().isEmpty()) {
                         
-                        if (binding.chartsRecyclerView.getAdapter() != null) {
-                            binding.chartsRecyclerView.getAdapter().notifyDataSetChanged();
+                        Entry firstEntry = rssResponse.getFeed().getEntry().get(0);
+                        if (firstEntry.getImImage() != null && !firstEntry.getImImage().isEmpty()) {
+                            // Get the highest resolution image (last in the list)
+                            ImImageItem highestResImage = firstEntry.getImImage().get(firstEntry.getImImage().size() - 1);
+                            String artworkUrl = highestResImage.getLabel();
+                            
+                            if (artworkUrl != null && !artworkUrl.isEmpty()) {
+                                Log.d("HomeFragment", "Setting cover image for " + chart.getTitle() + ": " + artworkUrl);
+                                chart.setCoverImageUrl(artworkUrl);
+                                
+                                if (binding.chartsRecyclerView.getAdapter() != null) {
+                                    requireActivity().runOnUiThread(() -> {
+                                        binding.chartsRecyclerView.getAdapter().notifyDataSetChanged();
+                                    });
+                                }
+                            } else {
+                                Log.e("HomeFragment", "Empty artwork URL for " + chart.getTitle());
+                                setDefaultCover(chart);
+                            }
+                        } else {
+                            Log.e("HomeFragment", "No images found for " + chart.getTitle());
+                            setDefaultCover(chart);
                         }
                     } else {
-                        Log.e("HomeFragment", "No images found for " + chart.getTitle());
+                        Log.e("HomeFragment", "Empty entries for " + chart.getTitle());
+                        setDefaultCover(chart);
                     }
                 } else {
                     Log.e("HomeFragment", "Failed to get chart data for " + chart.getTitle() + 
-                        ": " + (response.body() == null ? "null response" : "empty entries"));
+                        ": " + (response.body() == null ? "null response" : "unsuccessful response"));
+                    setDefaultCover(chart);
                 }
             }
 
             @Override
             public void onFailure(Call<RssResponse> call, Throwable t) {
                 Log.e("HomeFragment", "Error loading chart for " + chart.getTitle() + ": " + t.getMessage());
+                setDefaultCover(chart);
                 Toast.makeText(getContext(), "Error loading chart: " + t.getMessage(), Toast.LENGTH_SHORT).show();
             }
         });
+    }
+
+    /**
+     * Sets the default cover image for a chart when the API call fails
+     * @param chart The chart to set the default cover for
+     */
+    private void setDefaultCover(ChartCategory chart) {
+        if (chart.getTitle().contains("Top 50 Indonesia")) {
+            chart.setCoverImageUrl(String.valueOf(R.drawable.top_50_id_cover));
+        } else if (chart.getTitle().contains("Hot Hits Indonesia")) {
+            chart.setCoverImageUrl(String.valueOf(R.drawable.hot_hits_id_cover));
+        } else if (chart.getTitle().contains("Top 50 Global")) {
+            chart.setCoverImageUrl(String.valueOf(R.drawable.top_50_global_cover));
+        }
+        
+        if (binding.chartsRecyclerView.getAdapter() != null) {
+            requireActivity().runOnUiThread(() -> {
+                binding.chartsRecyclerView.getAdapter().notifyDataSetChanged();
+            });
+        }
     }
 
     /**
