@@ -171,9 +171,16 @@ public class PlaylistHelper extends SQLiteOpenHelper {
     }
 
     public int deleteSongFromPlaylist(String playlistId, ResultsItem track) {
-        SQLiteDatabase db = this.getWritableDatabase();
-        return db.delete(SONG_TABLE,
-                DatabaseContract.PlaylistSongColumns.PLAYLIST_ID + " = ? AND " + DatabaseContract.PlaylistSongColumns.TRACK_ID + " = ?",
-                new String[]{playlistId, String.valueOf(track.getTrackId())});
+        try {
+            Log.d("PlaylistHelper", "Deleting song from playlist. Playlist ID: " + playlistId + ", Track ID: " + track.getTrackId());
+            int result = database.delete(SONG_TABLE,
+                    DatabaseContract.PlaylistSongColumns.PLAYLIST_ID + " = ? AND " + DatabaseContract.PlaylistSongColumns.TRACK_ID + " = ?",
+                    new String[]{playlistId, String.valueOf(track.getTrackId())});
+            Log.d("PlaylistHelper", "Delete result: " + result);
+            return result;
+        } catch (Exception e) {
+            Log.e("PlaylistHelper", "Error deleting song from playlist", e);
+            return 0;
+        }
     }
 }
