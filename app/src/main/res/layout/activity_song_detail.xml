@@ -61,16 +61,6 @@
         android:id="@+id/seekBar"
         app:layout_constraintBottom_toTopOf="@id/playPauseBtn"
         android:layout_marginBottom="20dp"/>
-    
-    <ImageView
-        android:id="@+id/previousButton"
-        android:layout_width="50dp"
-        android:layout_height="50dp"
-        android:src="@android:drawable/ic_media_previous"
-        app:layout_constraintTop_toTopOf="@id/playPauseBtn"
-        app:layout_constraintBottom_toBottomOf="@id/playPauseBtn"
-        app:layout_constraintEnd_toStartOf="@id/playPauseBtn"
-        android:layout_marginEnd="30dp"/>
 
     <ImageView
         android:id="@+id/playPauseBtn"
@@ -82,16 +72,6 @@
         app:layout_constraintEnd_toEndOf="parent"
         android:layout_marginHorizontal="50dp"
         android:layout_marginBottom="100dp"/>
-
-    <ImageView
-        android:id="@+id/nextBtn"
-        android:layout_width="50dp"
-        android:layout_height="50dp"
-        android:src="@android:drawable/ic_media_next"
-        android:layout_marginStart="30dp"
-        app:layout_constraintTop_toTopOf="@id/playPauseBtn"
-        app:layout_constraintBottom_toBottomOf="@id/playPauseBtn"
-        app:layout_constraintStart_toEndOf="@id/playPauseBtn"/>
 
     <ImageButton
         android:id="@+id/infoBtn"
