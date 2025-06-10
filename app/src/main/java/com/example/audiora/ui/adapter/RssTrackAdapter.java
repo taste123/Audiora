@@ -87,10 +87,15 @@ public class RssTrackAdapter extends RecyclerView.Adapter<RssTrackAdapter.RssTra
 
             String imageUrl = "";
             if (track.getImImage() != null && !track.getImImage().isEmpty()) {
+                // Get the highest quality image (usually the last one in the list)
                 imageUrl = track.getImImage().get(track.getImImage().size() - 1).getLabel();
             }
 
-            Glide.with(binding.getRoot().getContext()).load(imageUrl).into(binding.albumCover);
+            Glide.with(binding.getRoot().getContext())
+                    .load(imageUrl)
+                    .placeholder(R.drawable.ic_launcher_background)
+                    .error(R.drawable.ic_launcher_background)
+                    .into(binding.albumCover);
 
             // *** VISUAL FEEDBACK LOGIC ***
             if (isPlaying) {
