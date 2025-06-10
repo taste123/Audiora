@@ -1,12 +1,16 @@
 package com.example.audiora.ui.fragment;
 
+import android.app.Activity;
 import android.content.DialogInterface;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.text.InputType;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.EditText;
+import android.widget.Toast;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
@@ -16,19 +20,19 @@ import com.example.audiora.database.PlaylistHelper;
 import com.example.audiora.databinding.FragmentLibraryBinding;
 import com.example.audiora.object.UserPlaylist;
 import com.example.audiora.ui.activity.MainActivity;
-import com.example.audiora.ui.adapter.UserPlaylistAdapter;
+import com.example.audiora.ui.adapter.PlaylistAdapter;
+
 import java.util.ArrayList;
 
-public class LibraryFragment extends Fragment implements UserPlaylistAdapter.OnPlaylistClickListener {
+public class LibraryFragment extends Fragment implements PlaylistAdapter.OnPlaylistClickListener {
 
     private FragmentLibraryBinding binding;
+    private PlaylistAdapter playlistAdapter;
     private PlaylistHelper playlistHelper;
-    private UserPlaylistAdapter playlistAdapter;
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         binding = FragmentLibraryBinding.inflate(inflater, container, false);
-        playlistHelper = PlaylistHelper.getInstance(requireContext());
         return binding.getRoot();
     }
 
@@ -36,65 +40,59 @@ public class LibraryFragment extends Fragment implements UserPlaylistAdapter.OnP
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         setupRecyclerView();
-        binding.createPlaylistItem.setOnClickListener(v -> showCreatePlaylistDialog());
-    }
-
-    @Override
-    public void onResume() {
-        super.onResume();
-        loadPlaylists(); // Refresh list every time the fragment is shown
+        setupCreatePlaylistButton();
+        loadPlaylists();
     }
 
     private void setupRecyclerView() {
+        playlistAdapter = new PlaylistAdapter(this);
         binding.libraryRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
-        playlistAdapter = new UserPlaylistAdapter(new ArrayList<>(), this);
         binding.libraryRecyclerView.setAdapter(playlistAdapter);
     }
 
-    private void loadPlaylists() {
-        playlistHelper.open();
-        ArrayList<UserPlaylist> playlists = playlistHelper.getAllPlaylists();
-        playlistHelper.close();
-        if (playlists.isEmpty()) {
-            binding.noLibraryItemsCard.setVisibility(View.VISIBLE);
-        } else {
-            binding.noLibraryItemsCard.setVisibility(View.GONE);
-        }
-        playlistAdapter = new UserPlaylistAdapter(playlists, this);
-        binding.libraryRecyclerView.setAdapter(playlistAdapter);
-    }
-
-    private void showCreatePlaylistDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
-        builder.setTitle("New Playlist");
-
-        final EditText input = new EditText(requireContext());
-        input.setInputType(InputType.TYPE_CLASS_TEXT);
-        input.setHint("Playlist Name");
-        builder.setView(input);
-
-        builder.setPositiveButton("Create", (dialog, which) -> {
-            String playlistName = input.getText().toString().trim();
-            if (!playlistName.isEmpty()) {
-                playlistHelper.open();
-                playlistHelper.createPlaylist(playlistName);
-                playlistHelper.close();
-                loadPlaylists(); // Refresh the list
+    private void setupCreatePlaylistButton() {
+        binding.createPlaylistItem.setOnClickListener(v -> {
+            if (getActivity() instanceof MainActivity) {
+                ((MainActivity) getActivity()).showCreatePlaylistDialog();
             }
         });
-        builder.setNegativeButton("Cancel", (dialog, which) -> dialog.cancel());
-        builder.show();
+    }
+
+    public void loadPlaylists() {
+        try {
+            playlistHelper = PlaylistHelper.getInstance(requireContext());
+            playlistHelper.open();
+            ArrayList<UserPlaylist> playlists = playlistHelper.getAllPlaylists();
+            playlistHelper.close();
+
+            if (playlists.isEmpty()) {
+                Toast.makeText(getContext(), "No playlists found", Toast.LENGTH_SHORT).show();
+            } else {
+                playlistAdapter.setPlaylists(playlists);
+            }
+        } catch (Exception e) {
+            Toast.makeText(getContext(), "Error loading playlists: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
     }
 
     @Override
     public void onPlaylistClick(UserPlaylist playlist) {
         if (getActivity() instanceof MainActivity) {
-            SongListFragment songListFragment = SongListFragment.newInstanceForPlaylist(
-                    playlist.getName(),
-                    playlist.getId()
-            );
-            ((MainActivity) getActivity()).replaceFragment(songListFragment);
+            ((MainActivity) getActivity()).navigateToSongList(playlist.getName(), playlist.getId());
         }
+    }
+
+    @Override
+    public void onPlaylistLongClick(UserPlaylist playlist) {
+        if (getActivity() instanceof MainActivity) {
+            ((MainActivity) getActivity()).showEditPlaylistDialog(playlist);
+        }
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        loadPlaylists();
     }
 
     @Override

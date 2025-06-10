@@ -6,6 +6,7 @@ import android.database.Cursor;
 import android.database.SQLException;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
+import android.util.Log;
 
 import com.example.audiora.model.ResultsItem;
 import com.example.audiora.object.UserPlaylist;
@@ -61,48 +62,88 @@ public class PlaylistHelper {
             do {
                 int id = cursor.getInt(cursor.getColumnIndexOrThrow(DatabaseContract.PlaylistColumns._ID));
                 String name = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseContract.PlaylistColumns.NAME));
+                String coverImage = cursor.getString(cursor.getColumnIndexOrThrow(DatabaseContract.PlaylistColumns.COVER_IMAGE));
                 int songCount = getSongCountForPlaylist(String.valueOf(id));
-                arrayList.add(new UserPlaylist(id, name, songCount));
+                arrayList.add(new UserPlaylist(id, name, coverImage, songCount));
             } while (cursor.moveToNext());
         }
         cursor.close();
         return arrayList;
     }
 
+    public int updatePlaylistTitle(int playlistId, String newTitle) {
+        ContentValues values = new ContentValues();
+        values.put(DatabaseContract.PlaylistColumns.NAME, newTitle);
+        return database.update(PLAYLIST_TABLE, values, 
+            DatabaseContract.PlaylistColumns._ID + " = ?", 
+            new String[]{String.valueOf(playlistId)});
+    }
+
+    public int updatePlaylistCover(int playlistId, String coverImageUri) {
+        ContentValues values = new ContentValues();
+        values.put(DatabaseContract.PlaylistColumns.COVER_IMAGE, coverImageUri);
+        return database.update(PLAYLIST_TABLE, values, 
+            DatabaseContract.PlaylistColumns._ID + " = ?", 
+            new String[]{String.valueOf(playlistId)});
+    }
+
     // --- Playlist Song Methods ---
     public long addSongToPlaylist(String playlistId, ResultsItem song) {
-        ContentValues values = new ContentValues();
-        values.put(DatabaseContract.PlaylistSongColumns.PLAYLIST_ID, playlistId);
-        values.put(DatabaseContract.PlaylistSongColumns.TRACK_ID, song.getTrackId());
-        values.put(DatabaseContract.PlaylistSongColumns.TRACK_NAME, song.getTrackName());
-        values.put(DatabaseContract.PlaylistSongColumns.ARTIST_NAME, song.getArtistName());
-        values.put(DatabaseContract.PlaylistSongColumns.COLLECTION_NAME, song.getCollectionName());
-        values.put(DatabaseContract.PlaylistSongColumns.ARTWORK_URL, song.getArtworkUrl100());
-        values.put(DatabaseContract.PlaylistSongColumns.PREVIEW_URL, song.getPreviewUrl());
-        return database.insert(SONG_TABLE, null, values);
+        try {
+            Log.d("PlaylistHelper", "Adding song to playlist. Playlist ID: " + playlistId + ", Song: " + song.getTrackName());
+            
+            ContentValues values = new ContentValues();
+            values.put(DatabaseContract.PlaylistSongColumns.PLAYLIST_ID, playlistId);
+            values.put(DatabaseContract.PlaylistSongColumns.TRACK_ID, song.getTrackId());
+            values.put(DatabaseContract.PlaylistSongColumns.TRACK_NAME, song.getTrackName());
+            values.put(DatabaseContract.PlaylistSongColumns.ARTIST_NAME, song.getArtistName());
+            values.put(DatabaseContract.PlaylistSongColumns.COLLECTION_NAME, song.getCollectionName());
+            values.put(DatabaseContract.PlaylistSongColumns.ARTWORK_URL, song.getArtworkUrl100());
+            values.put(DatabaseContract.PlaylistSongColumns.PREVIEW_URL, song.getPreviewUrl());
+            
+            long result = database.insert(SONG_TABLE, null, values);
+            Log.d("PlaylistHelper", "Insert result: " + result);
+            return result;
+        } catch (Exception e) {
+            Log.e("PlaylistHelper", "Error adding song to playlist", e);
+            return -1;
+        }
     }
 
     public ArrayList<ResultsItem> getSongsFromPlaylist(String playlistId) {
         ArrayList<ResultsItem> arrayList = new ArrayList<>();
-        Cursor cursor = database.query(SONG_TABLE,
-                null,
-                DatabaseContract.PlaylistSongColumns.PLAYLIST_ID + " = ?",
-                new String[]{playlistId},
-                null, null, null, null);
-        cursor.moveToFirst();
-        if (cursor.getCount() > 0) {
-            do {
-                arrayList.add(new ResultsItem(
-                        cursor.getInt(cursor.getColumnIndexOrThrow(DatabaseContract.PlaylistSongColumns.TRACK_ID)),
-                        cursor.getString(cursor.getColumnIndexOrThrow(DatabaseContract.PlaylistSongColumns.TRACK_NAME)),
-                        cursor.getString(cursor.getColumnIndexOrThrow(DatabaseContract.PlaylistSongColumns.ARTIST_NAME)),
-                        cursor.getString(cursor.getColumnIndexOrThrow(DatabaseContract.PlaylistSongColumns.COLLECTION_NAME)),
-                        cursor.getString(cursor.getColumnIndexOrThrow(DatabaseContract.PlaylistSongColumns.ARTWORK_URL)),
-                        cursor.getString(cursor.getColumnIndexOrThrow(DatabaseContract.PlaylistSongColumns.PREVIEW_URL))
-                ));
-            } while (cursor.moveToNext());
+        Cursor cursor = null;
+        try {
+            Log.d("PlaylistHelper", "Getting songs from playlist ID: " + playlistId);
+            
+            cursor = database.query(SONG_TABLE,
+                    null,
+                    DatabaseContract.PlaylistSongColumns.PLAYLIST_ID + " = ?",
+                    new String[]{playlistId},
+                    null, null, null, null);
+                    
+            Log.d("PlaylistHelper", "Found " + cursor.getCount() + " songs in playlist");
+            
+            cursor.moveToFirst();
+            if (cursor.getCount() > 0) {
+                do {
+                    arrayList.add(new ResultsItem(
+                            cursor.getInt(cursor.getColumnIndexOrThrow(DatabaseContract.PlaylistSongColumns.TRACK_ID)),
+                            cursor.getString(cursor.getColumnIndexOrThrow(DatabaseContract.PlaylistSongColumns.TRACK_NAME)),
+                            cursor.getString(cursor.getColumnIndexOrThrow(DatabaseContract.PlaylistSongColumns.ARTIST_NAME)),
+                            cursor.getString(cursor.getColumnIndexOrThrow(DatabaseContract.PlaylistSongColumns.COLLECTION_NAME)),
+                            cursor.getString(cursor.getColumnIndexOrThrow(DatabaseContract.PlaylistSongColumns.ARTWORK_URL)),
+                            cursor.getString(cursor.getColumnIndexOrThrow(DatabaseContract.PlaylistSongColumns.PREVIEW_URL))
+                    ));
+                } while (cursor.moveToNext());
+            }
+        } catch (Exception e) {
+            Log.e("PlaylistHelper", "Error getting songs from playlist", e);
+        } finally {
+            if (cursor != null && !cursor.isClosed()) {
+                cursor.close();
+            }
         }
-        cursor.close();
         return arrayList;
     }
 

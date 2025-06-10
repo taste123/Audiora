@@ -2,26 +2,25 @@ package com.example.audiora.ui.adapter;
 
 import android.view.LayoutInflater;
 import android.view.ViewGroup;
-
 import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
-
+import com.bumptech.glide.Glide;
+import com.example.audiora.R;
 import com.example.audiora.databinding.ItemChartCategoryBinding;
 import com.example.audiora.model.ChartCategory;
-
 import java.util.List;
 
 public class ChartCategoryAdapter extends RecyclerView.Adapter<ChartCategoryAdapter.ChartViewHolder> {
 
-    private final List<ChartCategory> chartList;
+    private final List<ChartCategory> chartCategories;
     private final OnChartClickListener listener;
 
     public interface OnChartClickListener {
         void onChartClick(ChartCategory chart);
     }
 
-    public ChartCategoryAdapter(List<ChartCategory> chartList, OnChartClickListener listener) {
-        this.chartList = chartList;
+    public ChartCategoryAdapter(List<ChartCategory> chartCategories, OnChartClickListener listener) {
+        this.chartCategories = chartCategories;
         this.listener = listener;
     }
 
@@ -34,13 +33,13 @@ public class ChartCategoryAdapter extends RecyclerView.Adapter<ChartCategoryAdap
 
     @Override
     public void onBindViewHolder(@NonNull ChartViewHolder holder, int position) {
-        ChartCategory currentChart = chartList.get(position);
-        holder.bind(currentChart, listener);
+        ChartCategory chart = chartCategories.get(position);
+        holder.bind(chart, listener);
     }
 
     @Override
     public int getItemCount() {
-        return chartList.size();
+        return chartCategories.size();
     }
 
     static class ChartViewHolder extends RecyclerView.ViewHolder {
@@ -53,7 +52,17 @@ public class ChartCategoryAdapter extends RecyclerView.Adapter<ChartCategoryAdap
 
         public void bind(final ChartCategory chart, final OnChartClickListener listener) {
             binding.chartTitleTextView.setText(chart.getTitle());
-            binding.chartCoverImageView.setImageResource(chart.getCoverImageResource());
+
+            // Load the cover image using Glide
+            if (chart.getCoverImageUrl() != null) {
+                Glide.with(binding.getRoot().getContext())
+                    .load(chart.getCoverImageUrl())
+                    .placeholder(chart.getDefaultCoverResId())
+                    .error(chart.getDefaultCoverResId())
+                    .into(binding.chartCoverImageView);
+            } else {
+                binding.chartCoverImageView.setImageResource(chart.getDefaultCoverResId());
+            }
 
             itemView.setOnClickListener(v -> {
                 if (listener != null) {

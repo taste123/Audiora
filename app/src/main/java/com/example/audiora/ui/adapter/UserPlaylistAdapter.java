@@ -16,6 +16,7 @@ public class UserPlaylistAdapter extends RecyclerView.Adapter<UserPlaylistAdapte
 
     public interface OnPlaylistClickListener {
         void onPlaylistClick(UserPlaylist playlist);
+        void onPlaylistLongClick(UserPlaylist playlist);
     }
 
     public UserPlaylistAdapter(List<UserPlaylist> playlistList, OnPlaylistClickListener listener) {
@@ -50,7 +51,8 @@ public class UserPlaylistAdapter extends RecyclerView.Adapter<UserPlaylistAdapte
         }
 
         public void bind(final UserPlaylist playlist, final OnPlaylistClickListener listener) {
-            binding.playlistTitleTextView.setText(playlist.getName());
+            binding.playlistName.setText(playlist.getName());
+            binding.playlistSongCount.setText(playlist.getSongCount() + " songs");
             // You can set a default image or one based on the first song later
             binding.playlistCoverImageView.setImageResource(R.drawable.ic_launcher_background);
 
@@ -58,6 +60,14 @@ public class UserPlaylistAdapter extends RecyclerView.Adapter<UserPlaylistAdapte
                 if (listener != null) {
                     listener.onPlaylistClick(playlist);
                 }
+            });
+
+            itemView.setOnLongClickListener(v -> {
+                if (listener != null) {
+                    listener.onPlaylistLongClick(playlist);
+                    return true;
+                }
+                return false;
             });
         }
     }

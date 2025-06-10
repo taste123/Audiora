@@ -6,26 +6,54 @@ import android.os.Parcelable;
 public class UserPlaylist implements Parcelable {
     private int id;
     private String name;
-    private int songCount; // To show how many songs are in the playlist
+    private String coverImage;
+    private int songCount;
 
-    public UserPlaylist(int id, String name, int songCount) {
+    public UserPlaylist(int id, String name, String coverImage, int songCount) {
         this.id = id;
         this.name = name;
+        this.coverImage = coverImage;
         this.songCount = songCount;
     }
 
-    // Getters
-    public int getId() { return id; }
-    public String getName() { return name; }
-    public int getSongCount() { return songCount; }
-    public void setSongCount(int count) { this.songCount = count; }
+    public int getId() {
+        return id;
+    }
 
+    public void setId(int id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String getCoverImage() {
+        return coverImage;
+    }
+
+    public void setCoverImage(String coverImage) {
+        this.coverImage = coverImage;
+    }
+
+    public int getSongCount() {
+        return songCount;
+    }
+
+    public void setSongCount(int songCount) {
+        this.songCount = songCount;
+    }
 
     // Parcelable Implementation
     protected UserPlaylist(Parcel in) {
         id = in.readInt();
         name = in.readString();
         songCount = in.readInt();
+        coverImage = in.readString();
     }
 
     @Override
@@ -33,6 +61,7 @@ public class UserPlaylist implements Parcelable {
         dest.writeInt(id);
         dest.writeString(name);
         dest.writeInt(songCount);
+        dest.writeString(coverImage);
     }
 
     @Override

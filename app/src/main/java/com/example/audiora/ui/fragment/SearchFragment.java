@@ -10,6 +10,7 @@ import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 
 import android.os.Handler;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -117,43 +118,80 @@ public class SearchFragment extends Fragment implements TrackAdapter.OnTrackClic
 
     @Override
     public void onInfoClick(ResultsItem track) {
-        PlaylistHelper playlistHelper = PlaylistHelper.getInstance(requireContext());
-        playlistHelper.open();
-        ArrayList<UserPlaylist> playlists = playlistHelper.getAllPlaylists();
-        playlistHelper.close();
+        showAddToPlaylistDialog(track);
+    }
 
-        if (playlists.isEmpty()) {
-            Toast.makeText(getContext(), "No playlists created yet.", Toast.LENGTH_SHORT).show();
-            return;
+    private void showAddToPlaylistDialog(ResultsItem track) {
+        try {
+            PlaylistHelper playlistHelper = PlaylistHelper.getInstance(requireContext());
+            playlistHelper.open();
+            ArrayList<UserPlaylist> playlists = playlistHelper.getAllPlaylists();
+            playlistHelper.close();
+
+            Log.d("SearchFragment", "Number of playlists found: " + playlists.size());
+
+            if (playlists.isEmpty()) {
+                Toast.makeText(getContext(), "No playlists created yet. Create a playlist first.", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            // Create a list of playlist names for the dialog
+            CharSequence[] playlistNames = new CharSequence[playlists.size()];
+            for (int i = 0; i < playlists.size(); i++) {
+                playlistNames[i] = playlists.get(i).getName();
+                Log.d("SearchFragment", "Playlist " + i + ": " + playlists.get(i).getName() + " (ID: " + playlists.get(i).getId() + ")");
+            }
+
+            // Show the dialog
+            AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
+            builder.setTitle("Add to Playlist");
+            builder.setItems(playlistNames, (dialog, which) -> {
+                // 'which' is the index of the selected item
+                UserPlaylist selectedPlaylist = playlists.get(which);
+                Log.d("SearchFragment", "Selected playlist: " + selectedPlaylist.getName() + " (ID: " + selectedPlaylist.getId() + ")");
+                addSongToSelectedPlaylist(selectedPlaylist.getId(), track);
+            });
+            builder.show();
+        } catch (Exception e) {
+            Log.e("SearchFragment", "Error in showAddToPlaylistDialog", e);
+            Toast.makeText(getContext(), "Error loading playlists: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
-
-        // Create a list of playlist names for the dialog
-        CharSequence[] playlistNames = new CharSequence[playlists.size()];
-        for (int i = 0; i < playlists.size(); i++) {
-            playlistNames[i] = playlists.get(i).getName();
-        }
-
-        // Show the dialog
-        AlertDialog.Builder builder = new AlertDialog.Builder(requireContext());
-        builder.setTitle("Add to Playlist");
-        builder.setItems(playlistNames, (dialog, which) -> {
-            // 'which' is the index of the selected item
-            UserPlaylist selectedPlaylist = playlists.get(which);
-            addSongToSelectedPlaylist(selectedPlaylist.getId(), track);
-        });
-        builder.show();
     }
 
     private void addSongToSelectedPlaylist(int playlistId, ResultsItem track) {
-        PlaylistHelper playlistHelper = PlaylistHelper.getInstance(requireContext());
-        playlistHelper.open();
-        long result = playlistHelper.addSongToPlaylist(String.valueOf(playlistId), track);
-        playlistHelper.close();
+        try {
+            PlaylistHelper playlistHelper = PlaylistHelper.getInstance(requireContext());
+            playlistHelper.open();
+            
+            // Check if song already exists in playlist
+            ArrayList<ResultsItem> existingSongs = playlistHelper.getSongsFromPlaylist(String.valueOf(playlistId));
+            for (ResultsItem existingSong : existingSongs) {
+                if (existingSong.getTrackId() == track.getTrackId()) {
+                    Toast.makeText(getContext(), "This song is already in the playlist", Toast.LENGTH_SHORT).show();
+                    playlistHelper.close();
+                    return;
+                }
+            }
+            
+            long result = playlistHelper.addSongToPlaylist(String.valueOf(playlistId), track);
+            playlistHelper.close();
 
-        if (result > 0) {
-            Toast.makeText(getContext(), "Added '" + track.getTrackName() + "' to playlist", Toast.LENGTH_SHORT).show();
-        } else {
-            Toast.makeText(getContext(), "Failed to add song", Toast.LENGTH_SHORT).show();
+            if (result > 0) {
+                Toast.makeText(getContext(), "Added '" + track.getTrackName() + "' to playlist", Toast.LENGTH_SHORT).show();
+                
+                // Refresh HomeFragment if it exists
+                if (getActivity() instanceof MainActivity) {
+                    MainActivity mainActivity = (MainActivity) getActivity();
+                    HomeFragment homeFragment = mainActivity.getHomeFragment();
+                    if (homeFragment != null) {
+                        homeFragment.loadPlaylists();
+                    }
+                }
+            } else {
+                Toast.makeText(getContext(), "Failed to add song to playlist", Toast.LENGTH_SHORT).show();
+            }
+        } catch (Exception e) {
+            Toast.makeText(getContext(), "Error adding song: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
 

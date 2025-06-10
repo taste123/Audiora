@@ -1,14 +1,16 @@
 package com.example.audiora.ui.fragment;
 
 import android.os.Bundle;
-
-import androidx.annotation.Nullable;
-import androidx.fragment.app.Fragment;
-import androidx.recyclerview.widget.GridLayoutManager;
-
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Toast;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.GridLayoutManager;
 
 import com.example.audiora.R;
 import com.example.audiora.database.PlaylistHelper;
@@ -17,58 +19,114 @@ import com.example.audiora.model.ChartCategory;
 import com.example.audiora.object.UserPlaylist;
 import com.example.audiora.ui.activity.MainActivity;
 import com.example.audiora.ui.adapter.ChartCategoryAdapter;
-import com.example.audiora.ui.adapter.UserPlaylistAdapter;
+import com.example.audiora.ui.adapter.PlaylistAdapter;
+import com.example.audiora.api.ApiService;
+import com.example.audiora.api.RetrofitClient;
+import com.example.audiora.model.Response;
+import com.example.audiora.model.rss.RssResponse;
+import com.example.audiora.model.rss.Entry;
+import com.example.audiora.model.rss.ImImageItem;
 
 import java.util.ArrayList;
 import java.util.List;
 
-public class HomeFragment extends Fragment implements ChartCategoryAdapter.OnChartClickListener, UserPlaylistAdapter.OnPlaylistClickListener {
-    private FragmentHomeBinding binding;
-    private PlaylistHelper playlistHelper;
+import retrofit2.Call;
+import retrofit2.Callback;
 
-    @Nullable
+public class HomeFragment extends Fragment implements ChartCategoryAdapter.OnChartClickListener, PlaylistAdapter.OnPlaylistClickListener {
+    private FragmentHomeBinding binding;
+    private PlaylistAdapter playlistAdapter;
+    private PlaylistHelper playlistHelper;
+    private ApiService apiService;
+    private List<ChartCategory> chartCategories;
+
     @Override
-    public View onCreateView(LayoutInflater inflater, ViewGroup container,
+    public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         binding = FragmentHomeBinding.inflate(inflater, container, false);
+        apiService = RetrofitClient.getApiService();
         return binding.getRoot();
     }
 
     @Override
-    public void onViewCreated(View view, @Nullable Bundle savedInstanceState) {
+    public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
-        playlistHelper = PlaylistHelper.getInstance(requireContext());
+        setupRecyclerView();
         setupCharts();
+        loadPlaylists();
     }
 
-    @Override
-    public void onResume() {
-        super.onResume();
-        setupUserPlaylists();
+    private void setupRecyclerView() {
+        playlistAdapter = new PlaylistAdapter(this);
+        binding.playlistHomeRecyclerView.setLayoutManager(new GridLayoutManager(getContext(), 2));
+        binding.playlistHomeRecyclerView.setAdapter(playlistAdapter);
     }
 
-    private void setupUserPlaylists() {
-        playlistHelper.open();
-        ArrayList<UserPlaylist> allPlaylists = playlistHelper.getAllPlaylists();
-        playlistHelper.close();
+    public void loadPlaylists() {
+        try {
+            playlistHelper = PlaylistHelper.getInstance(requireContext());
+            playlistHelper.open();
+            ArrayList<UserPlaylist> playlists = playlistHelper.getAllPlaylists();
+            playlistHelper.close();
 
-        if (allPlaylists.isEmpty()) {
-            binding.playlistHomeRecyclerView.setVisibility(View.GONE);
-        } else {
-            binding.playlistHomeRecyclerView.setVisibility(View.VISIBLE);
-
-            List<UserPlaylist> playlistsToShow = allPlaylists.subList(0, Math.min(allPlaylists.size(), 4));
-            UserPlaylistAdapter playlistAdapter = new UserPlaylistAdapter(playlistsToShow, this);
-            binding.playlistHomeRecyclerView.setLayoutManager(new GridLayoutManager(getContext(), 2));
-            binding.playlistHomeRecyclerView.setAdapter(playlistAdapter);
+            if (playlists.isEmpty()) {
+                Toast.makeText(getContext(), "No playlists found", Toast.LENGTH_SHORT).show();
+            } else {
+                playlistAdapter.setPlaylists(playlists);
+            }
+        } catch (Exception e) {
+            Toast.makeText(getContext(), "Error loading playlists: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
 
     private void setupCharts() {
-        List<ChartCategory> chartCategories = createChartCategories();
+        chartCategories = createChartCategories();
         ChartCategoryAdapter chartAdapter = new ChartCategoryAdapter(chartCategories, this);
         binding.chartsRecyclerView.setLayoutManager(new GridLayoutManager(getContext(), 2));
         binding.chartsRecyclerView.setAdapter(chartAdapter);
+
+        // Fetch chart data for each category
+        for (ChartCategory chart : chartCategories) {
+            fetchChartData(chart);
+        }
+    }
+
+    private void fetchChartData(ChartCategory chart) {
+        Call<RssResponse> call = apiService.getTopSongs(chart.getCountry(), chart.getLimit());
+        Log.d("HomeFragment", "Fetching chart data for " + chart.getTitle() + " with country: " + chart.getCountry());
+        
+        call.enqueue(new Callback<RssResponse>() {
+            @Override
+            public void onResponse(Call<RssResponse> call, retrofit2.Response<RssResponse> response) {
+                if (response.isSuccessful() && response.body() != null && !response.body().getFeed().getEntry().isEmpty()) {
+                    // Get the first song's artwork as the chart cover
+                    Entry firstEntry = response.body().getFeed().getEntry().get(0);
+                    List<ImImageItem> images = firstEntry.getImImage();
+                    if (images != null && !images.isEmpty()) {
+                        // Get the highest resolution image (usually the last one in the list)
+                        String artworkUrl = images.get(images.size() - 1).getLabel();
+                        Log.d("HomeFragment", "Setting cover image for " + chart.getTitle() + ": " + artworkUrl);
+                        chart.setCoverImageUrl(artworkUrl);
+                        
+                        // Update the adapter to refresh the view
+                        if (binding.chartsRecyclerView.getAdapter() != null) {
+                            binding.chartsRecyclerView.getAdapter().notifyDataSetChanged();
+                        }
+                    } else {
+                        Log.e("HomeFragment", "No images found for " + chart.getTitle());
+                    }
+                } else {
+                    Log.e("HomeFragment", "Failed to get chart data for " + chart.getTitle() + 
+                        ": " + (response.body() == null ? "null response" : "empty entries"));
+                }
+            }
+
+            @Override
+            public void onFailure(Call<RssResponse> call, Throwable t) {
+                Log.e("HomeFragment", "Error loading chart for " + chart.getTitle() + ": " + t.getMessage());
+                Toast.makeText(getContext(), "Error loading chart: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     private List<ChartCategory> createChartCategories() {
@@ -103,12 +161,13 @@ public class HomeFragment extends Fragment implements ChartCategoryAdapter.OnCha
     @Override
     public void onPlaylistClick(UserPlaylist playlist) {
         if (getActivity() instanceof MainActivity) {
-            SongListFragment songListFragment = SongListFragment.newInstanceForPlaylist(
-                    playlist.getName(),
-                    playlist.getId()
-            );
-            ((MainActivity) getActivity()).replaceFragment(songListFragment);
+            ((MainActivity) getActivity()).navigateToSongList(playlist.getName(), playlist.getId());
         }
+    }
+
+    @Override
+    public void onPlaylistLongClick(UserPlaylist playlist) {
+        Toast.makeText(getContext(), "Edit playlist: " + playlist.getName(), Toast.LENGTH_SHORT).show();
     }
 }
 

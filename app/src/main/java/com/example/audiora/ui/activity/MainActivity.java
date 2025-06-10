@@ -1,15 +1,23 @@
 package com.example.audiora.ui.activity;
 
+import android.app.Activity;
 import android.content.Intent;
 import android.media.AudioAttributes;
 import android.media.MediaPlayer;
+import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
+import android.provider.MediaStore;
+import android.text.InputType;
 import android.view.View;
+import android.widget.EditText;
 import android.widget.SeekBar;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
@@ -28,6 +36,10 @@ import com.example.audiora.model.ResultsItem;
 import com.example.audiora.ui.fragment.HomeFragment;
 import com.example.audiora.ui.fragment.LibraryFragment;
 import com.example.audiora.ui.fragment.SearchFragment;
+import com.example.audiora.ui.fragment.SongListFragment;
+import com.example.audiora.database.PlaylistHelper;
+import com.example.audiora.object.UserPlaylist;
+import com.example.audiora.helper.ThemeHelper;
 
 import java.io.IOException;
 
@@ -49,6 +61,12 @@ public class MainActivity extends AppCompatActivity implements MusicPlayerManage
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
+        setContentView(R.layout.activity_main);
+
+        // Apply theme
+        ThemeHelper themeHelper = new ThemeHelper(this);
+        applyTheme(themeHelper.isDarkMode());
+
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
@@ -272,7 +290,143 @@ public class MainActivity extends AppCompatActivity implements MusicPlayerManage
         } else {
             transaction.replace(R.id.fragmentContainer, fragment);
         }
+        transaction.addToBackStack(null);
         transaction.commit();
+    }
+
+    public HomeFragment getHomeFragment() {
+        return (HomeFragment) getSupportFragmentManager().findFragmentByTag("home");
+    }
+
+    public void navigateToSongList(String playlistName, int playlistId) {
+        SongListFragment songListFragment = SongListFragment.newInstanceForPlaylist(playlistName, playlistId);
+        replaceFragment(songListFragment);
+    }
+
+    public void showCreatePlaylistDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("New Playlist");
+
+        final EditText input = new EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_TEXT);
+        input.setHint("Playlist Name");
+        builder.setView(input);
+
+        builder.setPositiveButton("Create", (dialog, which) -> {
+            String playlistName = input.getText().toString().trim();
+            if (!playlistName.isEmpty()) {
+                PlaylistHelper playlistHelper = PlaylistHelper.getInstance(this);
+                playlistHelper.open();
+                playlistHelper.createPlaylist(playlistName);
+                playlistHelper.close();
+                // Refresh the current fragment if it's HomeFragment or LibraryFragment
+                Fragment currentFragment = getSupportFragmentManager().findFragmentById(R.id.fragmentContainer);
+                if (currentFragment instanceof HomeFragment) {
+                    ((HomeFragment) currentFragment).loadPlaylists();
+                } else if (currentFragment instanceof LibraryFragment) {
+                    ((LibraryFragment) currentFragment).loadPlaylists();
+                }
+            }
+        });
+        builder.setNegativeButton("Cancel", (dialog, which) -> dialog.cancel());
+        builder.show();
+    }
+
+    public void showEditPlaylistDialog(UserPlaylist playlist) {
+        String[] options = {"Edit Title", "Change Cover"};
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Playlist Options");
+        builder.setItems(options, (dialog, which) -> {
+            switch (which) {
+                case 0:
+                    showEditTitleDialog(playlist);
+                    break;
+                case 1:
+                    showChangeCoverDialog(playlist);
+                    break;
+            }
+        });
+        builder.show();
+    }
+
+    private void showEditTitleDialog(UserPlaylist playlist) {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Edit Playlist Title");
+
+        final EditText input = new EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_TEXT);
+        input.setText(playlist.getName());
+        builder.setView(input);
+
+        builder.setPositiveButton("OK", (dialog, which) -> {
+            String newTitle = input.getText().toString().trim();
+            if (!newTitle.isEmpty()) {
+                updatePlaylistTitle(playlist.getId(), newTitle);
+            }
+        });
+        builder.setNegativeButton("Cancel", (dialog, which) -> dialog.cancel());
+        builder.show();
+    }
+
+    private void showChangeCoverDialog(UserPlaylist playlist) {
+        Intent intent = new Intent(Intent.ACTION_PICK);
+        intent.setType("image/*");
+        startActivityForResult(intent, PICK_IMAGE_REQUEST);
+        currentPlaylistId = playlist.getId();
+    }
+
+    private void updatePlaylistTitle(int playlistId, String newTitle) {
+        PlaylistHelper playlistHelper = PlaylistHelper.getInstance(this);
+        playlistHelper.open();
+        playlistHelper.updatePlaylistTitle(playlistId, newTitle);
+        playlistHelper.close();
+        // Refresh the current fragment if it's HomeFragment or LibraryFragment
+        Fragment currentFragment = getSupportFragmentManager().findFragmentById(R.id.fragmentContainer);
+        if (currentFragment instanceof HomeFragment) {
+            ((HomeFragment) currentFragment).loadPlaylists();
+        } else if (currentFragment instanceof LibraryFragment) {
+            ((LibraryFragment) currentFragment).loadPlaylists();
+        }
+    }
+
+    private static final int PICK_IMAGE_REQUEST = 1;
+    private int currentPlaylistId = -1;
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == PICK_IMAGE_REQUEST && resultCode == Activity.RESULT_OK && data != null) {
+            Uri selectedImageUri = data.getData();
+            if (selectedImageUri != null && currentPlaylistId != -1) {
+                updatePlaylistCover(currentPlaylistId, selectedImageUri);
+            }
+        }
+    }
+
+    private void updatePlaylistCover(int playlistId, Uri imageUri) {
+        PlaylistHelper playlistHelper = PlaylistHelper.getInstance(this);
+        playlistHelper.open();
+        playlistHelper.updatePlaylistCover(playlistId, imageUri.toString());
+        playlistHelper.close();
+        // Refresh the current fragment if it's HomeFragment or LibraryFragment
+        Fragment currentFragment = getSupportFragmentManager().findFragmentById(R.id.fragmentContainer);
+        if (currentFragment instanceof HomeFragment) {
+            ((HomeFragment) currentFragment).loadPlaylists();
+        } else if (currentFragment instanceof LibraryFragment) {
+            ((LibraryFragment) currentFragment).loadPlaylists();
+        }
+    }
+
+    private void applyTheme(boolean isDarkMode) {
+        if (isDarkMode) {
+            getWindow().getDecorView().setBackgroundColor(
+                getResources().getColor(android.R.color.darker_gray)
+            );
+        } else {
+            getWindow().getDecorView().setBackgroundColor(
+                getResources().getColor(android.R.color.white)
+            );
+        }
     }
 }
 

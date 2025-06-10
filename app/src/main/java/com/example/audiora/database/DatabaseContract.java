@@ -7,6 +7,7 @@ public class DatabaseContract {
     public static final class PlaylistColumns implements BaseColumns {
         public static final String TABLE_NAME = "playlists";
         public static final String NAME = "name";
+        public static final String COVER_IMAGE = "cover_image_uri";
     }
 
     public static final class PlaylistSongColumns implements BaseColumns {

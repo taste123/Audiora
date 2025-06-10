@@ -22,6 +22,7 @@ public class RssTrackAdapter extends RecyclerView.Adapter<RssTrackAdapter.RssTra
 
     public interface OnRssTrackClickListener {
         void onRssTrackClicked(Entry track);
+        void onRssTrackInfoClicked(Entry track);
     }
 
     public RssTrackAdapter(List<Entry> trackList, OnRssTrackClickListener listener) {
@@ -101,6 +102,12 @@ public class RssTrackAdapter extends RecyclerView.Adapter<RssTrackAdapter.RssTra
             itemView.setOnClickListener(v -> {
                 if (listener != null) {
                     listener.onRssTrackClicked(track);
+                }
+            });
+
+            binding.infoBtn.setOnClickListener(v -> {
+                if (listener != null) {
+                    listener.onRssTrackInfoClicked(track);
                 }
             });
         }

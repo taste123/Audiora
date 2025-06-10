@@ -1,12 +1,21 @@
 package com.example.audiora.ui.fragment;
 
+import android.app.Activity;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
+import android.provider.MediaStore;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.example.audiora.api.ApiService;
 import com.example.audiora.api.RetrofitClient;
+import com.example.audiora.database.PlaylistHelper;
+import com.example.audiora.model.ResultsItem;
+import com.example.audiora.object.UserPlaylist;
 import com.example.audiora.model.rss.Entry;
 import com.example.audiora.model.rss.RssResponse;
 import com.example.audiora.ui.activity.MainActivity;
@@ -18,8 +27,10 @@ import android.view.ViewGroup;
 import android.widget.Toast;
 
 import com.example.audiora.databinding.FragmentSongListBinding;
+import com.bumptech.glide.Glide;
 
 import java.util.List;
+import java.util.ArrayList;
 
 import retrofit2.Call;
 
@@ -29,6 +40,8 @@ public class SongListFragment extends Fragment implements RssTrackAdapter.OnRssT
     private RssTrackAdapter rssTrackAdapter;
     private TrackAdapter trackAdapter;
     private ApiService apiService;
+    private int currentPlaylistId;
+    private PlaylistHelper playlistHelper;
 
     private static final String ARG_TITLE = "ARG_TITLE";
     private static final String ARG_COUNTRY = "ARG_COUNTRY";
@@ -37,11 +50,24 @@ public class SongListFragment extends Fragment implements RssTrackAdapter.OnRssT
     private static final String ARG_TYPE = "ARG_TYPE";
     private static final String ARG_PLAYLIST_ID = "ARG_PLAYLIST_ID";
 
+    private final ActivityResultLauncher<Intent> imagePickerLauncher = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
+                    Uri selectedImageUri = result.getData().getData();
+                    if (selectedImageUri != null) {
+                        updatePlaylistCover(selectedImageUri);
+                    }
+                }
+            }
+    );
+
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         binding = FragmentSongListBinding.inflate(inflater, container, false);
         apiService = RetrofitClient.getApiService();
+        playlistHelper = PlaylistHelper.getInstance(requireContext());
         return binding.getRoot();
     }
 
@@ -51,13 +77,114 @@ public class SongListFragment extends Fragment implements RssTrackAdapter.OnRssT
         setupRecyclerView();
 
         if (getArguments() != null) {
+            String type = getArguments().getString(ARG_TYPE);
             String title = getArguments().getString(ARG_TITLE);
-            String country = getArguments().getString(ARG_COUNTRY);
-            String feedType = getArguments().getString(ARG_FEED_TYPE);
-            int limit = getArguments().getInt(ARG_LIMIT, 50);
-
             binding.songListTitle.setText(title);
-            fetchChartSongs(country, feedType, limit);
+
+            if ("user_playlist".equals(type)) {
+                currentPlaylistId = getArguments().getInt(ARG_PLAYLIST_ID);
+                loadSongsFromPlaylist(currentPlaylistId);
+                setupPlaylistCover();
+                setupEditableTitle();
+            } else {
+                String country = getArguments().getString(ARG_COUNTRY);
+                String feedType = getArguments().getString(ARG_FEED_TYPE);
+                int limit = getArguments().getInt(ARG_LIMIT, 50);
+                fetchChartSongs(country, feedType, limit);
+                // Make title non-editable for charts
+                binding.songListTitle.setFocusable(false);
+                binding.songListTitle.setFocusableInTouchMode(false);
+            }
+        }
+    }
+
+    private void setupPlaylistCover() {
+        playlistHelper.open();
+        ArrayList<UserPlaylist> playlists = playlistHelper.getAllPlaylists();
+        playlistHelper.close();
+
+        for (UserPlaylist playlist : playlists) {
+            if (playlist.getId() == currentPlaylistId) {
+                if (playlist.getCoverImage() != null && !playlist.getCoverImage().isEmpty()) {
+                    Glide.with(this)
+                            .load(playlist.getCoverImage())
+                            .into(binding.playlistCover);
+                }
+                break;
+            }
+        }
+
+        binding.playlistCover.setOnClickListener(v -> openImagePicker());
+    }
+
+    private void openImagePicker() {
+        Intent intent = new Intent(Intent.ACTION_PICK, MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+        imagePickerLauncher.launch(intent);
+    }
+
+    private void updatePlaylistCover(Uri imageUri) {
+        try {
+            playlistHelper.open();
+            int result = playlistHelper.updatePlaylistCover(currentPlaylistId, imageUri.toString());
+            playlistHelper.close();
+
+            if (result > 0) {
+                Glide.with(this)
+                        .load(imageUri)
+                        .into(binding.playlistCover);
+                Toast.makeText(getContext(), "Playlist cover updated", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(getContext(), "Failed to update playlist cover", Toast.LENGTH_SHORT).show();
+            }
+        } catch (Exception e) {
+            Toast.makeText(getContext(), "Error updating cover: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void setupEditableTitle() {
+        binding.songListTitle.setOnClickListener(v -> {
+            if (getArguments() != null && "user_playlist".equals(getArguments().getString(ARG_TYPE))) {
+                showEditTitleDialog();
+            }
+        });
+    }
+
+    private void showEditTitleDialog() {
+        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(requireContext());
+        builder.setTitle("Edit Playlist Title");
+
+        // Set up the input
+        final android.widget.EditText input = new android.widget.EditText(requireContext());
+        input.setText(binding.songListTitle.getText());
+        input.setSelection(input.getText().length());
+        builder.setView(input);
+
+        // Set up the buttons
+        builder.setPositiveButton("Save", (dialog, which) -> {
+            String newTitle = input.getText().toString().trim();
+            if (!newTitle.isEmpty()) {
+                binding.songListTitle.setText(newTitle);
+                updatePlaylistTitle(newTitle);
+            }
+        });
+        builder.setNegativeButton("Cancel", (dialog, which) -> dialog.cancel());
+
+        builder.show();
+    }
+
+    private void updatePlaylistTitle(String newTitle) {
+        try {
+            playlistHelper.open();
+            int result = playlistHelper.updatePlaylistTitle(currentPlaylistId, newTitle);
+            playlistHelper.close();
+
+            if (result > 0) {
+                Toast.makeText(getContext(), "Playlist title updated", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(getContext(), "Failed to update playlist title", Toast.LENGTH_SHORT).show();
+            }
+        } catch (Exception e) {
+            Toast.makeText(getContext(), "Error updating title: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -83,12 +210,96 @@ public class SongListFragment extends Fragment implements RssTrackAdapter.OnRssT
         return fragment;
     }
 
-
     private void loadSongsFromPlaylist(int playlistId) {
-        // Here you would use PlaylistHelper to get songs and update an adapter
-        // This part needs a new adapter that works with ResultsItem, like your TrackAdapter
-        // For now, let's just show a Toast
-        Toast.makeText(getContext(), "Loading songs for playlist ID: " + playlistId, Toast.LENGTH_LONG).show();
+        try {
+            binding.progressBar.setVisibility(View.VISIBLE);
+            
+            // Initialize TrackAdapter for playlist songs
+            trackAdapter = new TrackAdapter(new ArrayList<>(), new TrackAdapter.OnTrackClickListener() {
+                @Override
+                public void onTrackClick(ResultsItem track) {
+                    if (getActivity() instanceof MainActivity) {
+                        ((MainActivity) getActivity()).playOrPauseTrack(track);
+                    }
+                }
+
+                @Override
+                public void onInfoClick(ResultsItem track) {
+                    showAddToPlaylistDialog(track);
+                }
+            });
+            binding.songListRecyclerView.setAdapter(trackAdapter);
+
+            // Load songs from database
+            playlistHelper.open();
+            ArrayList<ResultsItem> songs = playlistHelper.getSongsFromPlaylist(String.valueOf(playlistId));
+            playlistHelper.close();
+
+            binding.progressBar.setVisibility(View.GONE);
+            
+            if (songs.isEmpty()) {
+                Toast.makeText(getContext(), "No songs in this playlist", Toast.LENGTH_SHORT).show();
+            } else {
+                trackAdapter.setTrack(songs);
+            }
+        } catch (Exception e) {
+            binding.progressBar.setVisibility(View.GONE);
+            Toast.makeText(getContext(), "Error loading playlist: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void showAddToPlaylistDialog(ResultsItem track) {
+        try {
+            playlistHelper.open();
+            ArrayList<UserPlaylist> playlists = playlistHelper.getAllPlaylists();
+            playlistHelper.close();
+
+            if (playlists.isEmpty()) {
+                Toast.makeText(getContext(), "No playlists available", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            // Filter out the current playlist if we're in a playlist view
+            if (getArguments() != null && "user_playlist".equals(getArguments().getString(ARG_TYPE))) {
+                playlists.removeIf(playlist -> playlist.getId() == currentPlaylistId);
+            }
+
+            if (playlists.isEmpty()) {
+                Toast.makeText(getContext(), "No other playlists available", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            String[] playlistNames = new String[playlists.size()];
+            for (int i = 0; i < playlists.size(); i++) {
+                playlistNames[i] = playlists.get(i).getName();
+            }
+
+            androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(requireContext());
+            builder.setTitle("Add to Playlist");
+            builder.setItems(playlistNames, (dialog, which) -> {
+                UserPlaylist selectedPlaylist = playlists.get(which);
+                addSongToPlaylist(selectedPlaylist.getId(), track);
+            });
+            builder.show();
+        } catch (Exception e) {
+            Toast.makeText(getContext(), "Error loading playlists: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void addSongToPlaylist(int playlistId, ResultsItem track) {
+        try {
+            playlistHelper.open();
+            long result = playlistHelper.addSongToPlaylist(String.valueOf(playlistId), track);
+            playlistHelper.close();
+
+            if (result != -1) {
+                Toast.makeText(getContext(), "Added to playlist", Toast.LENGTH_SHORT).show();
+            } else {
+                Toast.makeText(getContext(), "Failed to add to playlist", Toast.LENGTH_SHORT).show();
+            }
+        } catch (Exception e) {
+            Toast.makeText(getContext(), "Error adding to playlist: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void setupRecyclerView() {
@@ -128,6 +339,20 @@ public class SongListFragment extends Fragment implements RssTrackAdapter.OnRssT
             String trackId = track.getId().getAttributes().getImId();
             ((MainActivity) getActivity()).lookUpAndPlayTrack(trackId);
         }
+    }
+
+    @Override
+    public void onRssTrackInfoClicked(Entry track) {
+        // Convert Entry to ResultsItem
+        ResultsItem resultsItem = new ResultsItem(
+            Integer.parseInt(track.getId().getAttributes().getImId()),
+            track.getImName().getLabel(),
+            track.getImArtist().getLabel(),
+            track.getImCollection() != null ? track.getImCollection().getImName().getLabel() : "",
+            track.getImImage().get(track.getImImage().size() - 1).getLabel(),
+            track.getLink().get(0).getAttributes().getHref()
+        );
+        showAddToPlaylistDialog(resultsItem);
     }
 
     @Override
