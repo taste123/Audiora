@@ -54,6 +54,13 @@ public class SongDetailActivity extends AppCompatActivity implements MusicPlayer
         playerManager.setPlayerStateListener(null);
     }
 
+    /**
+     * Sets up all the click listeners and interactions for the UI elements
+     * - Back button to return to previous screen
+     * - Play/Pause button to control music playback
+     * - Add to Playlist button to save the current song
+     * - SeekBar to navigate through the song
+     */
     private void setupUIListeners() {
         // Back button to close the activity
         binding.backArrowButton.setOnClickListener(v -> onBackPressed());
@@ -87,6 +94,11 @@ public class SongDetailActivity extends AppCompatActivity implements MusicPlayer
         });
     }
 
+    /**
+     * Shows a popup dialog with all available playlists
+     * When a playlist is selected, the current song will be added to it
+     * If no playlists exist, shows a message asking to create one first
+     */
     private void showAddToPlaylistDialog(ResultsItem track) {
         try {
             playlistHelper.open();
@@ -123,6 +135,11 @@ public class SongDetailActivity extends AppCompatActivity implements MusicPlayer
         }
     }
 
+    /**
+     * Adds the current song to the selected playlist
+     * Checks if the song is already in the playlist to avoid duplicates
+     * Shows a success message when added, or an error if something goes wrong
+     */
     private void addSongToSelectedPlaylist(int playlistId, ResultsItem track) {
         try {
             playlistHelper.open();
@@ -150,20 +167,30 @@ public class SongDetailActivity extends AppCompatActivity implements MusicPlayer
         }
     }
 
-    // This method receives state updates FROM the manager
+    /**
+     * Called when the music player's state changes (playing/paused/stopped)
+     * Updates the UI to match the current state of the player
+     */
     @Override
     public void onStateChange(MusicPlayerManager.PlayerState state, ResultsItem track) {
         updateUI(track);
     }
 
-    // This method receives progress updates FROM the manager
+    /**
+     * Called when the song's playback position changes
+     * Updates the seek bar to show the current position in the song
+     */
     @Override
     public void onProgressUpdate(int progress, int duration) {
         binding.seekBar.setMax(duration);
         binding.seekBar.setProgress(progress);
     }
 
-    // A single method to refresh all views based on the current state
+    /**
+     * Updates all UI elements to match the current song and player state
+     * Shows the album cover, song title, artist name, and play/pause button
+     * If no song is playing, closes the activity
+     */
     private void updateUI(ResultsItem track) {
         if (track != null) {
             binding.songTitle.setText(track.getTrackName());
