@@ -24,6 +24,7 @@ public class TrackAdapter extends RecyclerView.Adapter<TrackAdapter.TrackViewHol
     public interface OnTrackClickListener {
         void onTrackClick(ResultsItem track);
         void onInfoClick(ResultsItem track);
+        void onTrackLongClick(ResultsItem track);
     }
 
     public TrackAdapter(OnTrackClickListener listener) {
@@ -92,17 +93,23 @@ public class TrackAdapter extends RecyclerView.Adapter<TrackAdapter.TrackViewHol
                 itemView.setBackgroundColor(itemView.getContext().getResources().getColor(android.R.color.transparent, null)); // Default color for non-playing tracks
             }
 
-            itemView.setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    if (listener != null) {
-                        listener.onTrackClick(track);
-                    }
+            itemView.setOnClickListener(v -> {
+                if (listener != null) {
+                    listener.onTrackClick(track);
                 }
             });
+
+            itemView.setOnLongClickListener(v -> {
+                if (listener != null) {
+                    listener.onTrackLongClick(track);
+                    return true;
+                }
+                return false;
+            });
+
             binding.infoBtn.setOnClickListener(v -> {
                 if (listener != null) {
-                    listener.onInfoClick(track); // <<< CALL THE NEW METHOD
+                    listener.onInfoClick(track);
                 }
             });
         }

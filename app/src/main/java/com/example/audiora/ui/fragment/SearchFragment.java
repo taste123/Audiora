@@ -146,6 +146,11 @@ public class SearchFragment extends Fragment implements TrackAdapter.OnTrackClic
         showAddToPlaylistDialog(track);
     }
 
+    @Override
+    public void onTrackLongClick(ResultsItem track) {
+        // No action needed for search results
+    }
+
     private void showAddToPlaylistDialog(ResultsItem track) {
         try {
             PlaylistHelper playlistHelper = PlaylistHelper.getInstance(requireContext());

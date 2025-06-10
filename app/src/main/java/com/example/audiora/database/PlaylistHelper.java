@@ -13,16 +13,29 @@ import com.example.audiora.object.UserPlaylist;
 
 import java.util.ArrayList;
 
-public class PlaylistHelper {
+public class PlaylistHelper extends SQLiteOpenHelper {
 
     private static final String PLAYLIST_TABLE = DatabaseContract.PlaylistColumns.TABLE_NAME;
     private static final String SONG_TABLE = DatabaseContract.PlaylistSongColumns.TABLE_NAME;
     private static DatabaseHelper databaseHelper;
     private static SQLiteDatabase database;
     private static volatile PlaylistHelper INSTANCE;
+    private static final String DATABASE_NAME = "audiora.db";
+    private static final int DATABASE_VERSION = 1;
 
     private PlaylistHelper(Context context) {
+        super(context, DATABASE_NAME, null, DATABASE_VERSION);
         databaseHelper = new DatabaseHelper(context);
+    }
+
+    @Override
+    public void onCreate(SQLiteDatabase db) {
+        // This is handled by DatabaseHelper
+    }
+
+    @Override
+    public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+        // This is handled by DatabaseHelper
     }
 
     public static PlaylistHelper getInstance(Context context) {
@@ -155,5 +168,12 @@ public class PlaylistHelper {
         }
         cursor.close();
         return count;
+    }
+
+    public int deleteSongFromPlaylist(String playlistId, ResultsItem track) {
+        SQLiteDatabase db = this.getWritableDatabase();
+        return db.delete(SONG_TABLE,
+                DatabaseContract.PlaylistSongColumns.PLAYLIST_ID + " = ? AND " + DatabaseContract.PlaylistSongColumns.TRACK_ID + " = ?",
+                new String[]{playlistId, String.valueOf(track.getTrackId())});
     }
 }

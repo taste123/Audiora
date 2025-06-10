@@ -34,7 +34,7 @@ import java.util.ArrayList;
 
 import retrofit2.Call;
 
-public class SongListFragment extends Fragment implements RssTrackAdapter.OnRssTrackClickListener {
+public class SongListFragment extends Fragment implements RssTrackAdapter.OnRssTrackClickListener, TrackAdapter.OnTrackClickListener {
 
     private FragmentSongListBinding binding;
     private RssTrackAdapter rssTrackAdapter;
@@ -215,19 +215,7 @@ public class SongListFragment extends Fragment implements RssTrackAdapter.OnRssT
             binding.progressBar.setVisibility(View.VISIBLE);
             
             // Initialize TrackAdapter for playlist songs
-            trackAdapter = new TrackAdapter(new ArrayList<>(), new TrackAdapter.OnTrackClickListener() {
-                @Override
-                public void onTrackClick(ResultsItem track) {
-                    if (getActivity() instanceof MainActivity) {
-                        ((MainActivity) getActivity()).playOrPauseTrack(track);
-                    }
-                }
-
-                @Override
-                public void onInfoClick(ResultsItem track) {
-                    showAddToPlaylistDialog(track);
-                }
-            });
+            trackAdapter = new TrackAdapter(new ArrayList<>(), this);
             binding.songListRecyclerView.setAdapter(trackAdapter);
 
             // Load songs from database
@@ -303,8 +291,9 @@ public class SongListFragment extends Fragment implements RssTrackAdapter.OnRssT
     }
 
     private void setupRecyclerView() {
-        binding.songListRecyclerView.setHasFixedSize(true);
-        binding.songListRecyclerView.setLayoutManager(new LinearLayoutManager(getContext()));
+        trackAdapter = new TrackAdapter(new ArrayList<>(), this);
+        binding.songListRecyclerView.setLayoutManager(new LinearLayoutManager(requireContext()));
+        binding.songListRecyclerView.setAdapter(trackAdapter);
     }
 
     private void fetchChartSongs(String country, String feedType, int limit) {
@@ -353,6 +342,65 @@ public class SongListFragment extends Fragment implements RssTrackAdapter.OnRssT
             track.getLink().get(0).getAttributes().getHref()
         );
         showAddToPlaylistDialog(resultsItem);
+    }
+
+    @Override
+    public void onTrackClick(ResultsItem track) {
+        if (getActivity() instanceof MainActivity) {
+            ((MainActivity) getActivity()).playOrPauseTrack(track);
+        }
+    }
+
+    @Override
+    public void onInfoClick(ResultsItem track) {
+        showAddToPlaylistDialog(track);
+    }
+
+    @Override
+    public void onTrackLongClick(ResultsItem track) {
+        if (getArguments() != null && "user_playlist".equals(getArguments().getString(ARG_TYPE))) {
+            showDeleteConfirmationDialog(track);
+        }
+    }
+
+    private void showDeleteConfirmationDialog(ResultsItem track) {
+        androidx.appcompat.app.AlertDialog.Builder builder = new androidx.appcompat.app.AlertDialog.Builder(requireContext());
+        builder.setTitle("Remove Song");
+        builder.setMessage("Are you sure you want to remove '" + track.getTrackName() + "' from this playlist?");
+        
+        builder.setPositiveButton("Remove", (dialog, which) -> {
+            deleteSongFromPlaylist(track);
+        });
+        
+        builder.setNegativeButton("Cancel", (dialog, which) -> dialog.dismiss());
+        
+        builder.show();
+    }
+
+    private void deleteSongFromPlaylist(ResultsItem track) {
+        try {
+            playlistHelper.open();
+            int result = playlistHelper.deleteSongFromPlaylist(String.valueOf(currentPlaylistId), track);
+            playlistHelper.close();
+
+            if (result > 0) {
+                Toast.makeText(getContext(), "Removed '" + track.getTrackName() + "' from playlist", Toast.LENGTH_SHORT).show();
+                loadSongsFromPlaylist(currentPlaylistId); // Reload the playlist
+                
+                // Refresh HomeFragment if it exists
+                if (getActivity() instanceof MainActivity) {
+                    MainActivity mainActivity = (MainActivity) getActivity();
+                    HomeFragment homeFragment = mainActivity.getHomeFragment();
+                    if (homeFragment != null) {
+                        homeFragment.loadPlaylists();
+                    }
+                }
+            } else {
+                Toast.makeText(getContext(), "Couldn't remove the song. Please try again.", Toast.LENGTH_SHORT).show();
+            }
+        } catch (Exception e) {
+            Toast.makeText(getContext(), "Sorry, we couldn't remove the song right now. Please try again later.", Toast.LENGTH_SHORT).show();
+        }
     }
 
     @Override
