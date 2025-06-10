@@ -65,7 +65,7 @@ public class MainActivity extends AppCompatActivity implements MusicPlayerManage
 
         // Apply theme
         ThemeHelper themeHelper = new ThemeHelper(this);
-        applyTheme(themeHelper.isDarkMode());
+        themeHelper.applyTheme(getWindow().getDecorView());
 
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
@@ -414,18 +414,6 @@ public class MainActivity extends AppCompatActivity implements MusicPlayerManage
             ((HomeFragment) currentFragment).loadPlaylists();
         } else if (currentFragment instanceof LibraryFragment) {
             ((LibraryFragment) currentFragment).loadPlaylists();
-        }
-    }
-
-    private void applyTheme(boolean isDarkMode) {
-        if (isDarkMode) {
-            getWindow().getDecorView().setBackgroundColor(
-                getResources().getColor(android.R.color.darker_gray)
-            );
-        } else {
-            getWindow().getDecorView().setBackgroundColor(
-                getResources().getColor(android.R.color.white)
-            );
         }
     }
 }

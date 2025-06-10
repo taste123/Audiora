@@ -11,6 +11,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.fragment.app.Fragment;
 import androidx.recyclerview.widget.GridLayoutManager;
+import androidx.recyclerview.widget.LinearLayoutManager;
 
 import com.example.audiora.R;
 import com.example.audiora.database.PlaylistHelper;
@@ -26,6 +27,7 @@ import com.example.audiora.model.Response;
 import com.example.audiora.model.rss.RssResponse;
 import com.example.audiora.model.rss.Entry;
 import com.example.audiora.model.rss.ImImageItem;
+import com.example.audiora.helper.ThemeHelper;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,29 +41,51 @@ public class HomeFragment extends Fragment implements ChartCategoryAdapter.OnCha
     private PlaylistHelper playlistHelper;
     private ApiService apiService;
     private List<ChartCategory> chartCategories;
+    private ThemeHelper themeHelper;
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         binding = FragmentHomeBinding.inflate(inflater, container, false);
         apiService = RetrofitClient.getApiService();
+        themeHelper = new ThemeHelper(requireContext());
         return binding.getRoot();
     }
 
     @Override
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
+
+        binding.themeSwitch.setChecked(themeHelper.isDarkMode());
+
+        binding.themeSwitch.setOnCheckedChangeListener((buttonView, isChecked) -> {
+            themeHelper.setDarkMode(isChecked);
+            if (getActivity() != null) {
+                themeHelper.applyTheme(getActivity().getWindow().getDecorView());
+            }
+        });
+
+        themeHelper.applyTheme(view);
+
         setupRecyclerView();
         setupCharts();
         loadPlaylists();
     }
 
+    /**
+     * Initializes the RecyclerView for displaying user playlists
+     * Sets up a 2-column grid layout and attaches the playlist adapter
+     */
     private void setupRecyclerView() {
         playlistAdapter = new PlaylistAdapter(this);
         binding.playlistHomeRecyclerView.setLayoutManager(new GridLayoutManager(getContext(), 2));
         binding.playlistHomeRecyclerView.setAdapter(playlistAdapter);
     }
 
+    /**
+     * Loads all user playlists from the database and displays them
+     * Shows a toast message if no playlists are found or if there's an error
+     */
     public void loadPlaylists() {
         try {
             playlistHelper = PlaylistHelper.getInstance(requireContext());
@@ -79,18 +103,26 @@ public class HomeFragment extends Fragment implements ChartCategoryAdapter.OnCha
         }
     }
 
+    /**
+     * Sets up the charts section by creating chart categories and initializing the adapter
+     * Fetches chart data for each category to get their cover images
+     */
     private void setupCharts() {
         chartCategories = createChartCategories();
         ChartCategoryAdapter chartAdapter = new ChartCategoryAdapter(chartCategories, this);
         binding.chartsRecyclerView.setLayoutManager(new GridLayoutManager(getContext(), 2));
         binding.chartsRecyclerView.setAdapter(chartAdapter);
 
-        // Fetch chart data for each category
         for (ChartCategory chart : chartCategories) {
             fetchChartData(chart);
         }
     }
 
+    /**
+     * Fetches chart data from the API for a specific chart category
+     * Uses the first song's artwork as the chart cover image
+     * @param chart The chart category to fetch data for
+     */
     private void fetchChartData(ChartCategory chart) {
         Call<RssResponse> call = apiService.getTopSongs(chart.getCountry(), chart.getLimit());
         Log.d("HomeFragment", "Fetching chart data for " + chart.getTitle() + " with country: " + chart.getCountry());
@@ -99,16 +131,13 @@ public class HomeFragment extends Fragment implements ChartCategoryAdapter.OnCha
             @Override
             public void onResponse(Call<RssResponse> call, retrofit2.Response<RssResponse> response) {
                 if (response.isSuccessful() && response.body() != null && !response.body().getFeed().getEntry().isEmpty()) {
-                    // Get the first song's artwork as the chart cover
                     Entry firstEntry = response.body().getFeed().getEntry().get(0);
                     List<ImImageItem> images = firstEntry.getImImage();
                     if (images != null && !images.isEmpty()) {
-                        // Get the highest resolution image (usually the last one in the list)
                         String artworkUrl = images.get(images.size() - 1).getLabel();
                         Log.d("HomeFragment", "Setting cover image for " + chart.getTitle() + ": " + artworkUrl);
                         chart.setCoverImageUrl(artworkUrl);
                         
-                        // Update the adapter to refresh the view
                         if (binding.chartsRecyclerView.getAdapter() != null) {
                             binding.chartsRecyclerView.getAdapter().notifyDataSetChanged();
                         }
@@ -129,6 +158,10 @@ public class HomeFragment extends Fragment implements ChartCategoryAdapter.OnCha
         });
     }
 
+    /**
+     * Creates a list of chart categories with predefined settings
+     * @return List of chart categories including Top 50 Indonesia, Hot Hits Indonesia, and Top 50 Global
+     */
     private List<ChartCategory> createChartCategories() {
         List<ChartCategory> list = new ArrayList<>();
         list.add(new ChartCategory("Top 50 Indonesia", "id", "top-songs", 50, R.drawable.top_50_id_cover));
@@ -137,6 +170,11 @@ public class HomeFragment extends Fragment implements ChartCategoryAdapter.OnCha
         return list;
     }
 
+    /**
+     * Handles click events on chart items
+     * Navigates to the SongListFragment to display the selected chart's songs
+     * @param chart The selected chart category
+     */
     @Override
     public void onChartClick(ChartCategory chart) {
         if (getActivity() instanceof MainActivity) {
@@ -158,6 +196,11 @@ public class HomeFragment extends Fragment implements ChartCategoryAdapter.OnCha
         binding = null;
     }
 
+    /**
+     * Handles click events on playlist items
+     * Navigates to the SongListFragment to display the selected playlist's songs
+     * @param playlist The selected playlist
+     */
     @Override
     public void onPlaylistClick(UserPlaylist playlist) {
         if (getActivity() instanceof MainActivity) {
@@ -165,6 +208,11 @@ public class HomeFragment extends Fragment implements ChartCategoryAdapter.OnCha
         }
     }
 
+    /**
+     * Handles long click events on playlist items
+     * Currently shows a toast message for future implementation of playlist editing
+     * @param playlist The selected playlist
+     */
     @Override
     public void onPlaylistLongClick(UserPlaylist playlist) {
         Toast.makeText(getContext(), "Edit playlist: " + playlist.getName(), Toast.LENGTH_SHORT).show();

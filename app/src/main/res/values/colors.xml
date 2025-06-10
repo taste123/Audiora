@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Light Theme Colors -->
     <color name="primary">#2196F3</color>
     <color name="primary_dark">#1976D2</color>
     <color name="accent">#03A9F4</color>
@@ -8,4 +9,14 @@
     <color name="gray">#757575</color>
     <color name="light_gray">#EEEEEE</color>
     <color name="darker_gray">#212121</color>
+
+    <!-- Dark Theme Colors -->
+    <color name="dark_primary">#1A1A1A</color>
+    <color name="dark_primary_dark">#000000</color>
+    <color name="dark_accent">#2196F3</color>
+    <color name="dark_text_primary">#FFFFFF</color>
+    <color name="dark_text_secondary">#B3FFFFFF</color>
+    <color name="dark_background">#121212</color>
+    <color name="dark_surface">#1E1E1E</color>
+    <color name="dark_divider">#2C2C2C</color>
 </resources>
