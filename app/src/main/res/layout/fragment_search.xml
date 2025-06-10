@@ -46,6 +46,39 @@
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toBottomOf="@id/search_bar"
                 tools:listitem="@layout/item_track" />
+
+            <LinearLayout
+                android:id="@+id/errorLayout"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:gravity="center"
+                android:visibility="gone"
+                app:layout_constraintTop_toBottomOf="@id/search_bar"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintEnd_toEndOf="parent">
+
+                <TextView
+                    android:id="@+id/errorText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="No results found"
+                    android:textColor="@color/white"
+                    android:textSize="16sp"
+                    android:layout_marginBottom="16dp"/>
+
+                <ImageButton
+                    android:id="@+id/reloadButton"
+                    android:layout_width="48dp"
+                    android:layout_height="48dp"
+                    android:src="@drawable/ic_reload"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="Reload"
+                    android:tint="@color/white"/>
+
+            </LinearLayout>
+
         </androidx.constraintlayout.widget.ConstraintLayout>
 
     </ScrollView>

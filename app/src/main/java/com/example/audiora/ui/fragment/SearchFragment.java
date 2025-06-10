@@ -53,6 +53,7 @@ public class SearchFragment extends Fragment implements TrackAdapter.OnTrackClic
         super.onViewCreated(view, savedInstanceState);
         setupRecyclerView();
         setupSearchView();
+        setupReloadButton();
     }
 
     private void setupRecyclerView() {
@@ -79,9 +80,31 @@ public class SearchFragment extends Fragment implements TrackAdapter.OnTrackClic
         });
     }
 
+    private void setupReloadButton() {
+        binding.reloadButton.setOnClickListener(v -> {
+            if (binding.searchBar.getQuery() != null && !binding.searchBar.getQuery().toString().isEmpty()) {
+                performSearch(binding.searchBar.getQuery().toString());
+            }
+        });
+    }
+
+    private void showError(String message, boolean showReload) {
+        binding.progressBar.setVisibility(View.GONE);
+        binding.searchRecyclerView.setVisibility(View.GONE);
+        binding.errorLayout.setVisibility(View.VISIBLE);
+        binding.errorText.setText(message);
+        binding.reloadButton.setVisibility(showReload ? View.VISIBLE : View.GONE);
+    }
+
+    private void hideError() {
+        binding.errorLayout.setVisibility(View.GONE);
+        binding.searchRecyclerView.setVisibility(View.VISIBLE);
+    }
+
     private void performSearch(String query) {
         binding.progressBar.setVisibility(View.VISIBLE);
         binding.searchRecyclerView.setVisibility(View.GONE);
+        binding.errorLayout.setVisibility(View.GONE);
 
         Call<Response> call = apiService.searchMusicSongs(query, 20);
 
@@ -89,22 +112,24 @@ public class SearchFragment extends Fragment implements TrackAdapter.OnTrackClic
             @Override
             public void onResponse(Call<Response> call, retrofit2.Response<Response> response) {
                 binding.progressBar.setVisibility(View.GONE);
-                binding.searchRecyclerView.setVisibility(View.VISIBLE);
+                
                 if (response.isSuccessful() && response.body() != null) {
                     List<ResultsItem> tracks = response.body().getResults();
-                    trackAdapter.setTrack(tracks);
                     if (tracks.isEmpty()) {
-                        Toast.makeText(getContext(), "No results found for '" + query + "'", Toast.LENGTH_SHORT).show();
+                        showError("We couldn't find any songs matching '" + query + "'", false);
+                    } else {
+                        hideError();
+                        trackAdapter.setTrack(tracks);
                     }
                 } else {
-                    Toast.makeText(getContext(), "Failed to get search results", Toast.LENGTH_SHORT).show();
+                    showError("We're having trouble finding songs right now. Please try again.", true);
                 }
             }
 
             @Override
             public void onFailure(Call<Response> call, Throwable t) {
                 binding.progressBar.setVisibility(View.GONE);
-                Toast.makeText(getContext(), "Search Error: " + t.getMessage(), Toast.LENGTH_SHORT).show();
+                showError("Looks like you're offline. Please check your internet connection.", true);
             }
         });
     }
