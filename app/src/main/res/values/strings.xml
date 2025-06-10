@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">Audiora</string>
+    <!-- TODO: Remove or change this placeholder text -->
+    <string name="hello_blank_fragment">Hello blank fragment</string>
+    <string name="home_icon">home_icon</string>
+    <string name="search_icon">search_icon</string>
+    <string name="library_icon">library_icon</string>
+    <string name="played_title_tester">title songs if the title is too long it will be cut off like this</string>
+    <string name="search_et">What do you want to listen to?</string>
+    <string name="library">Library</string>
+</resources>
